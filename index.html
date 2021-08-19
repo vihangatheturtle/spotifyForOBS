@@ -279,7 +279,7 @@ function updateArtwork(url) {
 	document.getElementById("songArtwork").style.opacity = 0;
 	setTimeout(function() {
 		document.getElementById("songArtwork").src = url
-		if ((colorThief.getColor(document.getElementById("tstImg"))[0] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[1] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[2] + 10) > 500) {
+		if ((colorThief.getColor(document.getElementById("tstImg"))[0] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[1] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[2] + 10) > 575) {
 			document.getElementById("songName").className = "blk"
 			document.getElementById("songArtists").className = "blk"
 			document.getElementById("indicator").style.backgroundColor = "rgb(" + (colorThief.getColor(document.getElementById("tstImg"))[0] - 30).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[1] - 30).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[2] - 30).toString() + ")"
