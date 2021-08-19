@@ -1,0 +1,381 @@
+<style>
+#indicator {
+	background-color: black;
+	border-radius: 16px;
+	position: absolute;
+	width: 0px;
+	height: 100px;
+	transition: .6s;
+}
+
+#textm {
+    position: absolute;
+	visibility: hidden;
+    height: auto;
+    width: auto;
+    white-space: nowrap;
+}
+
+.blk {
+	color: rgb(0, 0, 0, 0.8);
+}
+
+.wht {
+	color: rgb(255, 255, 255, 0.8);
+}
+
+.heading {
+	font-family: arial;
+	font-size: 32;
+	height: 12px;
+}
+
+.desc {
+	font-family: arial;
+	font-size: 16;
+}
+
+a {
+	text-decoration: none;
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
+
+<body>
+	<div id="textm"></div>
+	<div id="notice"></div>
+	<input hidden id="copy"></input>
+	<img hidden id="tstImg"></img>
+	<div id="indicator">
+		<img id="songArtwork" style="padding-left:5px;padding-top:5px;width:90px;height:90px;position:absolute;border-radius:16px;text-decoration:none;transition:.2s;opacity:0;"></img>
+		<h1 id="songName" class="wht" style="position:absolute;padding-left:116px;font-family:arial black;font-size:18px;transition:.3s;white-space: nowrap;"></h1>
+		<h1 id="songArtists" class="wht" style="position:absolute;padding-left:116px;padding-top:36px;font-family:arial;font-size:12px;transition:.3s;white-space: nowrap;"></h1>
+	</div>
+	<div id="instructions">
+	<br><br><br><br>
+		<p class="heading">How to add to OBS</p>
+		<p class="desc"> - Add a new browser source</p>
+		<p class="desc"> - Set url to <a href="#" onclick="copyTextToClipboard('http://localhost:28591/#access_token=' + at + '&refresh_token=' + rt); document.getElementById('copiedSign').style.display = ''; setTimeout(function() { document.getElementById('copiedSign').style.display = 'none'; },2500);">this</a><a id="copiedSign" style="font-size:11px;display:none;"> (copied to clipboard!)</p></p>
+	</div>
+</body>
+
+<script>
+at = null
+rt = null
+currSong = null
+lockUi = false
+const colorThief = new ColorThief();
+
+document.getElementById("songArtwork").crossOrigin = "Anonymous";
+document.getElementById("tstImg").crossOrigin = "Anonymous";
+
+function refresh() {
+	fetch('http://localhost:28591/refresh', {
+		headers: {
+			'code': rt
+		}
+	})
+	.then(function(response) {
+		response.text().then(function(res) {
+			at = res
+			fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+				headers: {
+					'Accept': 'application/json',
+					'Content-Type': 'application/json',
+					'Authorization': 'Bearer ' + at
+				}
+			})
+			.then(response => response.json())
+			.then(data => display(data));
+		})
+	});
+}
+
+function copyTextToClipboard(text) {
+  var textArea = document.createElement("textarea");
+
+  textArea.style.position = 'fixed';
+  textArea.style.top = 0;
+  textArea.style.left = 0;
+  textArea.style.width = '2em';
+  textArea.style.height = '2em';
+  textArea.style.padding = 0;
+  textArea.style.border = 'none';
+  textArea.style.outline = 'none';
+  textArea.style.boxShadow = 'none';
+  textArea.style.background = 'transparent';
+
+
+  textArea.value = text;
+
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    var successful = document.execCommand('copy');
+    var msg = successful ? 'successful' : 'unsuccessful';
+    console.log('Copying text command was ' + msg);
+  } catch (err) {
+    console.log('Oops, unable to copy');
+  }
+
+  document.body.removeChild(textArea);
+}
+
+function getQueryObj(objName) {
+    for (i=0; i<document.location.search.split("&").length; i++) {
+        if (document.location.search.split("&")[i].includes(objName)) {
+            return document.location.search.split("&")[i].split(objName + "=")[1]
+        }
+    }
+}
+
+if (getQueryObj("code") != null) {
+	document.getElementById("instructions").style.display = "";
+	console.log("Trading access code for access token")
+	fetch('http://localhost:28591/verify', {
+		headers: {
+			'code': getQueryObj("code")
+		}
+	})
+	.then(function(response) {
+		response.text().then(function(res) {
+			if (res == "reauth") {
+				document.location = "http://localhost:28591/auth"
+			} else {
+				at = res.split("!")[0]
+				rt = res.split("!")[1]
+				document.location.hash = ""
+				fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json',
+						'Authorization': 'Bearer ' + at
+					}
+				})
+				.then(function(response) {
+					if (response.status == 401) {
+						console.log("Key invalid, refreshing key")
+						try {
+							refresh()
+							console.log("Key refreshed")
+						} catch {
+							hideArt(realLen("Oh no! Someting has gone wrong", "18", "arial black") + 50)
+							updateSongName("Oh no! Something has gone wrong", true)
+							updateSongArtists("Please refresh")
+							console.log("Failed to refresh key")
+						}
+					} else {
+						response.json().then(function(json) {
+							display(json)
+						})
+					}
+				});
+				setInterval(function() {
+					fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+						headers: {
+							'Accept': 'application/json',
+							'Content-Type': 'application/json',
+							'Authorization': 'Bearer ' + at
+						}
+					})
+					.then(function(response) {
+						if (response.status == 401) {
+							console.log("Key invalid, refreshing key")
+							try {
+								refresh()
+								console.log("Key refreshed")
+							} catch {
+								hideArt(realLen("Oh no! Someting has gone wrong", "18", "arial black") + 50)
+								updateSongName("Oh no! Something has gone wrong", true)
+								updateSongArtists("Please refresh")
+								console.log("Failed to refresh key")
+							}
+						} else {
+							response.json().then(function(json) {
+								display(json)
+							})
+						}
+					});
+				}, 5000);
+			}
+		});
+	});
+} else {
+	if (getHashObj("access_token") == null) {
+		document.location = "https://accounts.spotify.com/authorize?client_id=f369289ac2d04a73bbdad2109c21ef1d&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A28591&scope=user-read-currently-playing"
+	}
+	document.getElementById("instructions").style.display = "none";
+	at = getHashObj("access_token")
+	rt = getHashObj("refresh_token")
+	document.location.hash = ""
+	fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+		headers: {
+			'Accept': 'application/json',
+			'Content-Type': 'application/json',
+			'Authorization': 'Bearer ' + at
+		}
+	})
+	.then(function(response) {
+		if (response.status == 401) {
+			console.log("Key invalid, refreshing key")
+			try {
+				refresh()
+				console.log("Key refreshed")
+			} catch {
+				hideArt(realLen("Oh no! Someting has gone wrong", "18", "arial black") + 50)
+				updateSongName("Oh no! Something has gone wrong", true)
+				updateSongArtists("Please refresh")
+				console.log("Failed to refresh key")
+			}
+		} else {
+			response.json().then(function(json) {
+				display(json)
+			})
+		}
+	});
+	setInterval(function() {
+		fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+			headers: {
+				'Accept': 'application/json',
+				'Content-Type': 'application/json',
+				'Authorization': 'Bearer ' + at
+			}
+		})
+		.then(function(response) {
+			if (response.status == 401) {
+				console.log("Key invalid, refreshing key")
+				try {
+					refresh()
+					console.log("Key refreshed")
+				} catch {
+					hideArt(realLen("Oh no! Someting has gone wrong", "18", "arial black") + 50)
+					updateSongName("Oh no! Something has gone wrong", true)
+					updateSongArtists("Please refresh")
+					console.log("Failed to refresh key")
+				}
+			} else {
+				response.json().then(function(json) {
+					display(json)
+				})
+			}
+		});
+	}, 5000);
+}
+
+function realLen(text, size, font) {
+	var fontSize = size;
+	var test = document.getElementById("textm");
+	test.style.fontSize = fontSize;
+	test.style.fontFamily = font
+	test.innerText = text
+	return test.clientWidth
+}
+
+function updateArtwork(url) {
+	document.getElementById("tstImg").src = url
+	document.getElementById("songArtwork").style.opacity = 0;
+	setTimeout(function() {
+		document.getElementById("songArtwork").src = url
+		if ((colorThief.getColor(document.getElementById("tstImg"))[0] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[1] + 10) + (colorThief.getColor(document.getElementById("tstImg"))[2] + 10) > 500) {
+			document.getElementById("songName").className = "blk"
+			document.getElementById("songArtists").className = "blk"
+			document.getElementById("indicator").style.backgroundColor = "rgb(" + (colorThief.getColor(document.getElementById("tstImg"))[0] - 30).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[1] - 30).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[2] - 30).toString() + ")"
+		} else {
+			document.getElementById("songName").className = "wht"
+			document.getElementById("songArtists").className = "wht"
+			document.getElementById("indicator").style.backgroundColor = "rgb(" + (colorThief.getColor(document.getElementById("tstImg"))[0] + 10).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[1] + 10).toString() + "," + (colorThief.getColor(document.getElementById("tstImg"))[2] + 10).toString() + ")"
+		}
+		document.getElementById("songArtwork").style.opacity = 1;
+	}, 350);
+}
+
+function showArt() {
+	document.getElementById("songArtwork").style.opacity = 1;
+	document.getElementById("songName").style.opacity = 0;
+	setTimeout(function() {
+		document.getElementById("songArtists").style.paddingLeft = "116px";
+		document.getElementById("songName").style.paddingLeft = "116px";
+	}, 250)
+}
+
+function hideArt(len) {
+	document.getElementById("songArtwork").style.opacity = 0;
+	document.getElementById("songArtists").style.paddingLeft = "16px";
+	document.getElementById("songName").style.paddingLeft = "16px";
+	document.getElementById("indicator").style.width = len
+	document.getElementById("indicator").style.backgroundColor = "rgb(0, 0, 0)"
+	setTimeout(function() {
+		document.getElementById("songName").className = "wht"
+		document.getElementById("songArtists").className = "wht"
+	}, 360);
+}
+
+function updateStatus(text) {
+	console.log(text)
+	document.getElementById("notice").innerText = text;
+}
+
+function updateSongArtists(text, song) {
+	document.getElementById("songArtists").style.opacity = 0;
+	setTimeout(function() {
+		document.getElementById("songArtists").innerText = text;
+		document.getElementById("songArtists").style.opacity = 1
+	}, 350);
+	setTimeout(function() {
+		if (realLen(text, 12, "arial") > realLen(song, 18, "arial black")) {
+			document.getElementById("indicator").style.width = (realLen(text, 12, "arial")) + 180
+		}
+	}, 60);
+}
+
+function updateSongName(text, cancelWidth) {
+	document.getElementById("songName").style.opacity = 0;
+	if (!cancelWidth) {
+		document.getElementById("indicator").style.width = (realLen(text, 18, "arial black")) + 150
+	}
+	setTimeout(function() {
+		document.getElementById("songName").innerHTML = text;
+		document.getElementById("songName").style.opacity = 1;
+	}, 350);
+	currSong = text
+}
+
+function getHashObj(objName) {
+    for (i=0; i<document.location.hash.split("&").length; i++) {
+        if (document.location.hash.split("&")[i].includes(objName)) {
+            return document.location.hash.split("&")[i].split(objName + "=")[1]
+        }
+    }
+}
+
+function display(data) {
+	if (data["is_playing"]) {
+		if (!lockUi) {
+			if (currSong != data["item"]["name"]) {
+				updateArtwork(data["item"]["album"]["images"][1]["url"])
+				artistStrBuilder = []
+				
+				if (data["item"]["artists"].length > 1) {
+					for (i=0; i<data["item"]["artists"].length; i++) {
+						artistStrBuilder.push(data["item"]["artists"][i]["name"])
+					}
+				} else {
+					artistStrBuilder = data["item"]["artists"][0]["name"]
+				}
+				showArt()
+				updateSongName(data["item"]["name"], false)
+				updateSongArtists(artistStrBuilder.toString().split(",").join(", "), data["item"]["name"])
+			}
+		}
+	} else {
+		if (currSong != "Nothing is currently playing") {
+			hideArt(realLen("Nothing is currently playing", "18", "arial black") + 32)
+			updateSongName("Nothing is currently playing", true)
+			updateSongArtists("", "")
+		}
+	}
+}
+</script>
